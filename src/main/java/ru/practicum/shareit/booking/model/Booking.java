@@ -1,6 +1,7 @@
 package ru.practicum.shareit.booking.model;
 
-import lombok.Data;
+import lombok.AccessLevel;
+import lombok.experimental.FieldDefaults;
 import ru.practicum.shareit.item.model.Item;
 import ru.practicum.shareit.user.model.User;
 
@@ -9,12 +10,12 @@ import java.time.LocalDate;
 /**
  * TODO Sprint add-bookings.
  */
-@Data
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class Booking {
-    private Long id;
-    private LocalDate start;
-    private LocalDate end;
-    private Item item;
-    private User booker;
-    private Status status;
+    private Long id = null;
+    private LocalDate start = null;
+    private LocalDate end = null;
+    private Item item = null;
+    private User booker = null;
+    private Status status = null;
 }
