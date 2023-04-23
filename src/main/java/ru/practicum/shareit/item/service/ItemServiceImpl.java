@@ -1,77 +1,161 @@
 package ru.practicum.shareit.item.service;
 
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import ru.practicum.shareit.exception.NotFoundException;
-import ru.practicum.shareit.item.ItemMapper;
-import ru.practicum.shareit.item.dao.ItemDao;
+import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.shareit.booking.model.Booking;
+import ru.practicum.shareit.booking.model.BookingStatus;
+import ru.practicum.shareit.exception.*;
+import ru.practicum.shareit.item.dto.CommentsDto;
 import ru.practicum.shareit.item.dto.ItemDto;
+import ru.practicum.shareit.item.mapper.CommentMapper;
+import ru.practicum.shareit.item.mapper.ItemMapper;
+import ru.practicum.shareit.item.model.Comment;
 import ru.practicum.shareit.item.model.Item;
-import ru.practicum.shareit.user.dto.UserDto;
-import ru.practicum.shareit.user.model.User;
+import ru.practicum.shareit.item.projection.CommentWithAuthorName;
+import ru.practicum.shareit.item.projection.ItemWithLastAndNextBookingAndComments;
+import ru.practicum.shareit.item.repo.CommentRepo;
+import ru.practicum.shareit.item.repo.ItemRepo;
+import ru.practicum.shareit.user.repo.UserRepo;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Objects;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class ItemServiceImpl implements ItemService {
+    private final ItemRepo itemRepo;
+    private final UserRepo userRepo;
+    private final CommentRepo commentRepo;
+    private final Function<LocalDateTime, Predicate<Booking>> nonFutureBookingsFunction = now ->
+            b -> !b.getStart().isAfter(now);
 
-    private final ItemDao itemDao;
-    private final ItemMapper itemMapper;
-    private static final String ITEM_NOT_FOUND_MESSAGE = "Вещи с id %s нет";
-
-    @Override
-    public ItemDto create(ItemDto itemDto, UserDto userDto) {
-        Item item = itemMapper.toItem(itemDto);
-        User user = new User(userDto.getId(), userDto.getName(), userDto.getEmail());
-        item.setOwner(user);
-
-        return itemMapper.toItemDto(itemDao.create(item));
+    @Autowired
+    public ItemServiceImpl(ItemRepo itemRepo, UserRepo userRepo, CommentRepo commentRepo) {
+        this.itemRepo = itemRepo;
+        this.userRepo = userRepo;
+        this.commentRepo = commentRepo;
     }
 
-    @Override
-    public Item findByUserIdAndItemId(Long userId, Long itemId) {
-        return itemDao.findByUserIdAndItemId(userId, itemId).orElseThrow(() -> {
-            throw new NotFoundException(String.format(ITEM_NOT_FOUND_MESSAGE, itemId));
-        });
+    private void checkIfUserIsOwner(Long ownerId, Long itemId) {
+        if (!itemRepo.findById(itemId).orElseThrow(() -> {
+                    throw new ItemNotFoundException("Item does not exist");
+                })
+                .getOwnerId().equals(ownerId)) {
+            throw new NonOwnerUpdatingException("Item can be updated only by its owner");
+        }
     }
 
-    @Override
-    public ItemDto findById(Long itemId) {
-        Item item = itemDao.findById(itemId).orElseThrow(() -> {
-            throw new NotFoundException(String.format(ITEM_NOT_FOUND_MESSAGE, itemId));
-        });
-
-        return itemMapper.toItemDto(item);
+    private void checkIfUserExists(Long userId) {
+        if (userRepo.findById(userId).isEmpty()) {
+            throw new UserNotFoundException("User does not exist");
+        }
     }
 
-    @Override
-    public List<ItemDto> findAllByUserId(Long userId) {
-        return itemDao.findAllByUserId(userId)
-                .stream()
-                .map(itemMapper::toItemDto)
+    private void checkIfCommentRelatedToCurrentBooking(Long userId, Long itemId, LocalDateTime now) {
+        Item item = itemRepo.findById(itemId)
+                .orElseThrow(() -> {
+                    throw new ItemNotFoundException("Item does not exist");
+                });
+        List<Booking> usersBookingsOfItem = item.getBookings().stream()
+                .filter(b -> b.getBooker().getId().equals(userId))
+                .filter(b -> b.getStatus().equals(BookingStatus.APPROVED))
+                .filter(nonFutureBookingsFunction.apply(now))
                 .collect(Collectors.toList());
+        if (usersBookingsOfItem.isEmpty()) {
+            throw new IllegalCommentException("Illegal comment");
+        }
+    }
+
+    @Transactional
+    @Override
+    public ItemDto addItem(Long userId, ItemDto itemDto) {
+        if (itemDto.getAvailable() == null) {
+            throw new EmptyItemAvailabilityException("Item availability is empty");
+        }
+        if (itemDto.getName() == null || itemDto.getName().isEmpty()) {
+            throw new EmptyItemNameException("Item name is empty");
+        }
+        if (itemDto.getDescription() == null) {
+            throw new EmptyItemDescriptionException("Item description is empty");
+        }
+        checkIfUserExists(userId);
+        Item inputItem = ItemMapper.mapToModel(itemDto);
+        inputItem.setOwnerId(userId);
+        Item addedItem = itemRepo.save(inputItem);
+        return ItemMapper.mapToDto(addedItem);
+    }
+
+    @Transactional
+    @Override
+    public ItemDto updateItem(Long ownerId, Long itemId, ItemDto itemDto) {
+        checkIfUserIsOwner(ownerId, itemId);
+        Item inputItem = ItemMapper.mapToModel(itemDto);
+        inputItem.setId(itemId);
+        inputItem.setOwnerId(ownerId);
+        if (inputItem.getAvailable() != null) {
+            itemRepo.updateAvailable(inputItem.getId(), inputItem.getAvailable());
+        }
+        if (inputItem.getDescription() != null) {
+            itemRepo.updateDescription(inputItem.getId(), inputItem.getDescription());
+        }
+        if (inputItem.getName() != null) {
+            itemRepo.updateName(inputItem.getId(), inputItem.getName());
+        }
+        return ItemMapper.mapToDto(itemRepo.findById(itemId)
+                .orElseThrow(() -> {
+                    throw new ItemNotFoundException("Item does not exist");
+                }));
     }
 
     @Override
-    public List<ItemDto> findAllByText(String text) {
-        return itemDao.findByText(text)
-                .stream()
-                .map(itemMapper::toItemDto)
-                .collect(Collectors.toList());
+    public ItemWithLastAndNextBookingAndComments getItemById(Long userId, Long itemId) {
+        boolean isOwner;
+        try {
+            checkIfUserIsOwner(userId, itemId);
+            isOwner = true;
+        } catch (NonOwnerUpdatingException e) {
+            isOwner = false;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        return itemRepo.findItemWithLastAndNextBookingAndComments(itemId, now, isOwner);
     }
 
     @Override
-    public ItemDto update(Long userId, Long itemId, ItemDto itemDto) {
-        Item item = findByUserIdAndItemId(userId, itemId);
-        Item itemFromDto = itemMapper.toItem(itemDto);
+    public List<ItemWithLastAndNextBookingAndComments> getAllOwnersItems(Long ownerId) {
+        LocalDateTime now = LocalDateTime.now();
+        return itemRepo.findAllWithLastAndNextBookingAndComments(ownerId, now);
+    }
 
-        item.setName(Objects.requireNonNullElse(itemFromDto.getName(), item.getName()));
-        item.setDescription(Objects.requireNonNullElse(itemFromDto.getDescription(), item.getDescription()));
-        item.setAvailable(Objects.requireNonNullElse(itemFromDto.getAvailable(), item.getAvailable()));
+    @Override
+    public List<ItemDto> searchItems(String text) {
+        if (text.isEmpty()) {
+            return List.of();
+        }
+        String searchableText = text.toLowerCase();
+        return itemRepo.findAllByDescriptionContainingIgnoreCaseOrNameContainingIgnoreCase(searchableText,
+                        searchableText).stream()
+                .filter(Item::getAvailable)
+                .map(ItemMapper::mapToDto).collect(Collectors.toList());
+    }
 
-        return itemMapper.toItemDto(itemDao.update(item, itemId));
+    @Override
+    public CommentWithAuthorName addComment(Long userId, Long itemId, CommentsDto commentsDto) {
+        LocalDateTime now = LocalDateTime.now();
+        checkIfCommentRelatedToCurrentBooking(userId, itemId, now);
+        Comment newComment = CommentMapper.mapDtoToModel(commentsDto);
+        newComment.setItem(itemRepo.findById(itemId)
+                .orElseThrow(() -> {
+                    throw new ItemNotFoundException("Item does not exist");
+                }));
+        newComment.setAuthor(userRepo.findById(userId)
+                .orElseThrow(() -> {
+                    throw new UserNotFoundException("User does not exist");
+                }));
+        newComment.setCreated(now);
+        Comment addedComment = commentRepo.save(newComment);
+        return commentRepo.findWithAuthorName(addedComment.getId());
     }
 }

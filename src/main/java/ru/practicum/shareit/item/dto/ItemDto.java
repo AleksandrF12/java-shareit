@@ -1,29 +1,20 @@
 package ru.practicum.shareit.item.dto;
 
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotNull;
+import lombok.AccessLevel;
+import lombok.Builder;
+import lombok.Data;
+import lombok.experimental.FieldDefaults;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import lombok.ToString;
-import ru.practicum.shareit.Create;
-
-/**
- * TODO Sprint add-controllers.
- */
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@ToString
+@Data
+@Builder
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class ItemDto {
-	private Long id;
-	@NotBlank(groups = {Create.class})
-	private String name;
-	@NotBlank(groups = {Create.class})
-	private String description;
-	@NotNull(groups = {Create.class})
-	private Boolean available;
+    Long id;
+    String name;
+    String description;
+    Boolean available;
+
+    public Boolean getAvailable() {
+        return available;
+    }
 }

@@ -1,37 +1,63 @@
 package ru.practicum.shareit.item.model;
 
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.JoinColumn;
-import javax.persistence.ManyToOne;
-import javax.persistence.Table;
+import com.fasterxml.jackson.annotation.*;
+import lombok.*;
+import lombok.experimental.FieldDefaults;
+import ru.practicum.shareit.booking.model.Booking;
 
-import lombok.Getter;
-import lombok.Setter;
-import ru.practicum.shareit.user.User;
+import javax.persistence.*;
+import java.util.List;
 
-/**
- * TODO Sprint add-controllers.
- */
 @Entity
-@Table(name = "items")
+@Table(name = "items", schema = "public")
 @Getter
 @Setter
+@FieldDefaults(level = AccessLevel.PRIVATE)
+@JsonIdentityInfo(
+        generator = ObjectIdGenerators.PropertyGenerator.class,
+        property = "id")
 public class Item {
-	@Id
-	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	@Column(name = "item_id")
-	private Long id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    Long id;
+    @Column(name = "owner_id")
+    Long ownerId;
+    @Column(name = "name")
+    String name;
+    @Column(name = "description")
+    String description;
+    @Column(name = "available")
+    Boolean available;
 
-	@Column(name = "name")
-	private String name;
-	private String descrioption;
-	private Boolean available;
+    @OneToMany(
+            targetEntity = Booking.class,
+            mappedBy = "item",
+            fetch = FetchType.EAGER
+    )
+    @JsonManagedReference
+    private List<Booking> bookings;
 
-	@ManyToOne
-	@JoinColumn(name = "owner_id")
-	private User owner;
+    @OneToMany(
+            targetEntity = Comment.class,
+            mappedBy = "item",
+            fetch = FetchType.LAZY
+    )
+    @JsonManagedReference
+    private List<Comment> comments;
+
+    public Boolean getAvailable() {
+        return available;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Item)) return false;
+        return id != null && id.equals(((Item) o).getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
+    }
 }

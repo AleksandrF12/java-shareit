@@ -1,89 +1,78 @@
 package ru.practicum.shareit.user.service;
 
-import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import ru.practicum.shareit.exception.ConflictException;
-import ru.practicum.shareit.exception.NotFoundException;
-import ru.practicum.shareit.user.UserMapper;
-import ru.practicum.shareit.user.dao.UserDao;
-import ru.practicum.shareit.user.dto.UserDto;
+import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.shareit.exception.EmptyEmailException;
+import ru.practicum.shareit.exception.UserNotFoundException;
 import ru.practicum.shareit.user.model.User;
+import ru.practicum.shareit.user.repo.UserRepo;
 
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
+@Slf4j
 public class UserServiceImpl implements UserService {
+    private final UserRepo userRepo;
 
-    private final UserDao userDao;
-    private final UserMapper userMapper;
-    private static final String USER_NOT_FOUND_MESSAGE = "Пользователя с id %s нет";
-
-    @Override
-    public UserDto create(UserDto userDto) {
-        User user = userMapper.toUser(userDto);
-
-        checkUserEmailIsNotUnique(user, user.getId());
-
-        return userMapper.toUserDto(userDao.create(user));
+    @Autowired
+    public UserServiceImpl(UserRepo userRepo) {
+        this.userRepo = userRepo;
     }
 
-    @Override
-    public List<UserDto> findAll() {
-        return userDao.findAll()
-                .stream()
-                .map(userMapper::toUserDto)
-                .collect(Collectors.toList());
+    private boolean checkIfUserTriesToUpdateWithSameEmail(Long userId, User user) {
+        return userRepo.findById(userId)
+                .orElseThrow(() -> {
+                    throw new UserNotFoundException(String.format("User %d does not exist", userId));
+                })
+                .getEmail().equals(user.getEmail());
     }
 
+    @Transactional
     @Override
-    public UserDto findById(Long userId) {
-        User user = userDao.findById(userId).orElseThrow(() -> {
-            throw new NotFoundException(String.format(USER_NOT_FOUND_MESSAGE, userId));
-        });
-
-        return userMapper.toUserDto(user);
-    }
-
-    @Override
-    public UserDto updateById(UserDto userDto, Long userId) {
-        User userFromMap = userMapper.toUser(findById(userId));
-        User userFromDto = userMapper.toUser(userDto);
-
-        checkUserIsNotExists(userFromMap, userId);
-        checkUserEmailIsNotUnique(userFromDto, userId);
-
-        userFromMap.setName(Objects.requireNonNullElse(userFromDto.getName(), userFromMap.getName()));
-        userFromMap.setEmail(Objects.requireNonNullElse(userFromDto.getEmail(), userFromMap.getEmail()));
-
-        return userMapper.toUserDto(userDao.update(userFromMap, userId));
-    }
-
-    @Override
-    public void delete(Long userId) {
-        User userFromMap = userMapper.toUser(findById(userId));
-
-        checkUserIsNotExists(userFromMap, userId);
-        userDao.delete(userId);
-    }
-
-    private void checkUserIsNotExists(User user, Long userId) {
-        if (user == null) {
-            throw new NotFoundException(String.format(USER_NOT_FOUND_MESSAGE, userId));
+    public User addUser(User user) {
+        if (user.getEmail() == null) {
+            throw new EmptyEmailException("Email is empty");
         }
+        return userRepo.save(user);
     }
 
-    private void checkUserEmailIsNotUnique(User user, Long userId) {
-        List<UserDto> userWithSameEmail = findAll()
-                .stream()
-                .filter(u -> u.getEmail().equals(user.getEmail()))
-                .filter(u -> !Objects.equals(u.getId(), userId))
-                .collect(Collectors.toList());
-
-        if (!userWithSameEmail.isEmpty()) {
-            throw new ConflictException("Пользователь с такой почтой уже есть");
+    @Transactional
+    @Override
+    public User updateUser(Long userId, User user) {
+        user.setId(userId);
+        if (user.getName() != null) {
+            userRepo.updateUserName(user.getId(), user.getName());
         }
+        if (user.getEmail() != null) {
+            if (!checkIfUserTriesToUpdateWithSameEmail(userId, user)) {
+                userRepo.updateUserEmail(user.getId(), user.getEmail());
+            } else {
+                log.info("User {} tries to update with the same email", userId);
+            }
+        }
+        return userRepo.findById(userId)
+                .orElseThrow(() -> {
+                    throw new UserNotFoundException(String.format("User %d does not exist", userId));
+                });
+    }
+
+    @Override
+    public User getUserById(Long userId) {
+        return userRepo.findById(userId)
+                .orElseThrow(() -> {
+                    throw new UserNotFoundException(String.format("User %d does not exist", userId));
+                });
+    }
+
+    @Override
+    public List<User> getAllUsers() {
+        return userRepo.findAll();
+    }
+
+    @Override
+    public void deleteUserById(Long userId) {
+        userRepo.deleteById(userId);
     }
 }
