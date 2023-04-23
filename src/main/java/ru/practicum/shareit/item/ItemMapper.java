@@ -1,24 +1,18 @@
 package ru.practicum.shareit.item;
 
-import org.springframework.stereotype.Component;
-import ru.practicum.shareit.item.dto.ItemDto;
+import ru.practicum.shareit.booking.Booking;
+import ru.practicum.shareit.item.dto.ItemInfoDto;
 import ru.practicum.shareit.item.model.Item;
 
-@Component
+/**
+ * // TODO .
+ *
+ * @author Vladimir Ivanov (ivanov.vladimir.l@gmail.com)
+ */
 public class ItemMapper {
-
-    public ItemDto toItemDto(Item item) {
-        return new ItemDto(item.getId(), item.getName(),
-                item.getDescription(), item.getAvailable());
-    }
-
-    public Item toItem(ItemDto itemDto) {
-        return new Item()
-                .toBuilder()
-                .name(itemDto.getName())
-                .description(itemDto.getDescription())
-                .available(itemDto.getAvailable())
-                .id(itemDto.getId())
-                .build();
-    }
+	public static ItemInfoDto toItemInfoDto(Item item, Booking lastBooking, Booking nextBooking) {
+		return new ItemInfoDto(item.getId(), item.getName(),
+				item.getDescrioption(), item.getAvailable(),
+				new ItemInfoDto.BookingDto(lastBooking.getId(),.. ));
+	}
 }

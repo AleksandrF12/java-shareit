@@ -1,47 +1,31 @@
 package ru.practicum.shareit.user;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
-import ru.practicum.shareit.Create;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import lombok.extern.slf4j.Slf4j;
 import ru.practicum.shareit.Update;
-import ru.practicum.shareit.user.dto.UserDto;
-import ru.practicum.shareit.user.service.UserService;
 
-import java.util.List;
-
+/**
+ * TODO Sprint add-controllers.
+ */
 @RestController
-@Slf4j
-@RequiredArgsConstructor
 @RequestMapping(path = "/users")
+@Slf4j
 public class UserController {
+	@Autowired
+	UserService userService;
 
-    private final UserService userService;
-
-    @PostMapping
-    public UserDto create(@Validated({Create.class}) @RequestBody UserDto userDto) {
-        return userService.create(userDto);
-    }
-
-    @GetMapping("/{userId}")
-    public UserDto get(@PathVariable("userId") Long userId) {
-        return userService.findById(userId);
-    }
-
-    @GetMapping
-    public List<UserDto> getAll() {
-        return userService.findAll();
-    }
-
-    @PatchMapping("/{userId}")
-    public UserDto update(@Validated({Update.class}) @RequestBody UserDto userDto,
-                          @PathVariable("userId") Long userId) {
-        return userService.updateById(userDto, userId);
-    }
-
-    @DeleteMapping("/{userId}")
-    public void delete(@PathVariable("userId") Long userId) {
-        userService.delete(userId);
-    }
+	@PatchMapping("{userId}")
+	public UserDto update(@PathVariable long userId, @RequestBody @Validated(Update.class) UserDto userDto) {
+		userDto.setId(userId);
+		log.info("Updating user {}", userDto);
+		return userService.updateUser(userDto);
+	}
 }
