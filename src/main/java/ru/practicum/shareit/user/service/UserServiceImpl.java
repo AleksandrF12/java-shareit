@@ -1,74 +1,71 @@
 package ru.practicum.shareit.user.service;
 
-
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.practicum.shareit.exeption.ObjectNotFoundException;
-import ru.practicum.shareit.user.mapper.UserMapper;
+import ru.practicum.shareit.exception.ValidationException;
+import ru.practicum.shareit.user.User;
 import ru.practicum.shareit.user.dto.UserDto;
-import ru.practicum.shareit.user.model.User;
-import ru.practicum.shareit.user.storage.UserRepository;
+import ru.practicum.shareit.user.mapper.MapperUser;
+import ru.practicum.shareit.user.repository.UserRepository;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
+@RequiredArgsConstructor
 @Service
-@Slf4j
-@Transactional(readOnly = true)
-@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class UserServiceImpl implements UserService {
-
-    private final UserRepository repository;
+    private final UserRepository userRepository;
 
     @Override
+    public UserDto addUser(UserDto userDto) {
+        validate(userDto);
+        User user = userRepository.save(MapperUser.dtoToUser(userDto));
+        return MapperUser.userToDto(user);
+    }
+
+    private void validate(UserDto userDto) {
+        if (userDto.getEmail() == null || userDto.getEmail().isBlank() || !userDto.getEmail().contains("@")) {
+            throw new ValidationException("Email can't be empty and must contains @");
+        }
+    }
+
+    @Transactional
+    @Override
+    public UserDto updateUser(UserDto userDto) {
+        validateUpdate(userDto);
+        User user = userRepository.save(MapperUser.dtoToUser(userDto));
+        return MapperUser.userToDto(user);
+    }
+
+    private void validateUpdate(UserDto userDto) {
+        if (userDto.getName() == null) {
+            userDto.setName(getUser(userDto.getId()).getName());
+        }
+        if (userDto.getEmail() == null) {
+            userDto.setEmail(getUser(userDto.getId()).getEmail());
+        }
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public UserDto getUser(long id) {
+        return MapperUser.userToDto(userRepository.getById(id));
+    }
+
+    @Transactional(readOnly = true)
+    @Override
     public List<UserDto> getAllUsers() {
-        log.info("All users sent");
-        return repository.findAll().stream()
-                .map(UserMapper::toUserDto)
+        return userRepository.findAll()
+                .stream()
+                .map(MapperUser::userToDto)
                 .collect(Collectors.toList());
     }
 
+    @Transactional
     @Override
-    public UserDto getById(long id) {
-        User user = repository.findById(id).orElseThrow(() -> {
-            log.warn("User with id {} not found", id);
-            throw new ObjectNotFoundException("User not found");
-        });
-        return UserMapper.toUserDto(user);
+    public void deleteUser(long id) {
+        userRepository.deleteById(id);
     }
 
-    @Override
-    @Transactional
-    public UserDto create(UserDto userDto) {
-        log.info("User created");
-        User user = repository.save(UserMapper.toUser(userDto));
-        return UserMapper.toUserDto(user);
-    }
-
-    @Override
-    @Transactional
-    public UserDto update(long id, UserDto userDto) {
-        User user = repository.findById(id).orElseThrow(() -> {
-            log.warn("User with id {} not found", id);
-            throw new ObjectNotFoundException("User not found");
-        });
-        if (userDto.getEmail() != null) {
-            user.setEmail(userDto.getEmail());
-        }
-        if (userDto.getName() != null) {
-            user.setName(userDto.getName());
-        }
-        log.info("User updated");
-        return UserMapper.toUserDto(repository.save(user));
-    }
-
-    @Override
-    @Transactional
-    public void delete(long id) {
-        log.info("User with id {} deleted", id);
-        repository.findById(id).ifPresent(repository::delete);
-    }
 }
