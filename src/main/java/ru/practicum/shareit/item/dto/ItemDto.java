@@ -20,8 +20,9 @@ public class ItemDto {
     String description;
     @NotNull(groups = {Create.class})
     Boolean available;
-    Long ownerId;
+    long ownerId;
     BookerInfoDto lastBooking;
     BookerInfoDto nextBooking;
     List<CommentDto> comments;
-}
+
+   }

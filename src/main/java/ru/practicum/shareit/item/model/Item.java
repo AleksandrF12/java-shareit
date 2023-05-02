@@ -10,6 +10,7 @@ import javax.persistence.*;
 @Getter
 @Setter
 @ToString
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class Item {
@@ -25,4 +26,6 @@ public class Item {
     @ManyToOne
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
+
+
 }
