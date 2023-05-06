@@ -4,6 +4,8 @@ import lombok.Value;
 import org.springframework.format.annotation.DateTimeFormat;
 import ru.practicum.shareit.Create;
 
+import javax.validation.constraints.Future;
+import javax.validation.constraints.FutureOrPresent;
 import javax.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 
@@ -13,8 +15,8 @@ public class BookingInputDto {
     Long itemId;
     @NotNull(groups = {Create.class})
     @DateTimeFormat(pattern = "yyyy-MM-ddTHH:mm:ss")
-    LocalDateTime start;
+    @FutureOrPresent LocalDateTime start;
     @NotNull(groups = {Create.class})
     @DateTimeFormat(pattern = "yyyy-MM-ddTHH:mm:ss")
-    LocalDateTime end;
+    @Future LocalDateTime end;
 }
