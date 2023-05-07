@@ -22,4 +22,7 @@ public class UserDto {
     @NotBlank(groups = {Create.class})
     @Size(groups = {Create.class, Update.class}, min = 1)
     private String email;
+
+    public UserDto(Long id, String name, String email) {
+    }
 }
