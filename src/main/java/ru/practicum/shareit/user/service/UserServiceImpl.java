@@ -1,89 +1,74 @@
 package ru.practicum.shareit.user.service;
 
+
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import ru.practicum.shareit.exception.ConflictException;
-import ru.practicum.shareit.exception.NotFoundException;
-import ru.practicum.shareit.user.UserMapper;
-import ru.practicum.shareit.user.dao.UserDao;
+import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.shareit.exeption.ObjectNotFoundException;
+import ru.practicum.shareit.user.mapper.UserMapper;
 import ru.practicum.shareit.user.dto.UserDto;
 import ru.practicum.shareit.user.model.User;
+import ru.practicum.shareit.user.storage.UserRepository;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
+@Slf4j
+@Transactional(readOnly = true)
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class UserServiceImpl implements UserService {
 
-    private final UserDao userDao;
-    private final UserMapper userMapper;
-    private static final String USER_NOT_FOUND_MESSAGE = "Пользователя с id %s нет";
+    private final UserRepository repository;
 
     @Override
-    public UserDto create(UserDto userDto) {
-        User user = userMapper.toUser(userDto);
-
-        checkUserEmailIsNotUnique(user, user.getId());
-
-        return userMapper.toUserDto(userDao.create(user));
-    }
-
-    @Override
-    public List<UserDto> findAll() {
-        return userDao.findAll()
-                .stream()
-                .map(userMapper::toUserDto)
+    public List<UserDto> getAllUsers() {
+        log.info("All users sent");
+        return repository.findAll().stream()
+                .map(UserMapper::toUserDto)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public UserDto findById(Long userId) {
-        User user = userDao.findById(userId).orElseThrow(() -> {
-            throw new NotFoundException(String.format(USER_NOT_FOUND_MESSAGE, userId));
+    public UserDto getById(long id) {
+        User user = repository.findById(id).orElseThrow(() -> {
+            log.warn("User with id {} not found", id);
+            throw new ObjectNotFoundException("User not found");
         });
-
-        return userMapper.toUserDto(user);
+        return UserMapper.toUserDto(user);
     }
 
     @Override
-    public UserDto updateById(UserDto userDto, Long userId) {
-        User userFromMap = userMapper.toUser(findById(userId));
-        User userFromDto = userMapper.toUser(userDto);
-
-        checkUserIsNotExists(userFromMap, userId);
-        checkUserEmailIsNotUnique(userFromDto, userId);
-
-        userFromMap.setName(Objects.requireNonNullElse(userFromDto.getName(), userFromMap.getName()));
-        userFromMap.setEmail(Objects.requireNonNullElse(userFromDto.getEmail(), userFromMap.getEmail()));
-
-        return userMapper.toUserDto(userDao.update(userFromMap, userId));
+    @Transactional
+    public UserDto create(UserDto userDto) {
+        log.info("User created");
+        User user = repository.save(UserMapper.toUser(userDto));
+        return UserMapper.toUserDto(user);
     }
 
     @Override
-    public void delete(Long userId) {
-        User userFromMap = userMapper.toUser(findById(userId));
-
-        checkUserIsNotExists(userFromMap, userId);
-        userDao.delete(userId);
+    @Transactional
+    public UserDto update(long id, UserDto userDto) {
+        User user = repository.findById(id).orElseThrow(() -> {
+            log.warn("User with id {} not found", id);
+            throw new ObjectNotFoundException("User not found");
+        });
+        if (userDto.getEmail() != null) {
+            user.setEmail(userDto.getEmail());
+        }
+        if (userDto.getName() != null) {
+            user.setName(userDto.getName());
+        }
+        log.info("User updated");
+        return UserMapper.toUserDto(repository.save(user));
     }
 
-    private void checkUserIsNotExists(User user, Long userId) {
-        if (user == null) {
-            throw new NotFoundException(String.format(USER_NOT_FOUND_MESSAGE, userId));
-        }
-    }
-
-    private void checkUserEmailIsNotUnique(User user, Long userId) {
-        List<UserDto> userWithSameEmail = findAll()
-                .stream()
-                .filter(u -> u.getEmail().equals(user.getEmail()))
-                .filter(u -> !Objects.equals(u.getId(), userId))
-                .collect(Collectors.toList());
-
-        if (!userWithSameEmail.isEmpty()) {
-            throw new ConflictException("Пользователь с такой почтой уже есть");
-        }
+    @Override
+    @Transactional
+    public void delete(long id) {
+        log.info("User with id {} deleted", id);
+        repository.findById(id).ifPresent(repository::delete);
     }
 }
