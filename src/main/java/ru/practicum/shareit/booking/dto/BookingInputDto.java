@@ -1,6 +1,6 @@
 package ru.practicum.shareit.booking.dto;
 
-import lombok.*;
+import lombok.Data;
 import org.springframework.format.annotation.DateTimeFormat;
 import ru.practicum.shareit.Create;
 
@@ -9,10 +9,7 @@ import javax.validation.constraints.FutureOrPresent;
 import javax.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+@Data
 public class BookingInputDto {
     @NotNull(groups = {Create.class})
     Long itemId;
