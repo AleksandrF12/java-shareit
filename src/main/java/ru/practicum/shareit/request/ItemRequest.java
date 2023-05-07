@@ -13,12 +13,12 @@ public class ItemRequest {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private long id;
+     long id;
     @Column(name = "description", nullable = false, length = 1000)
-    private String description;
+     String description;
     @Column(name = "requestor", nullable = false)
-    private long requestor;
+     long requestor;
     @Column(name = "created", nullable = false)
-    private Instant created;
+     Instant created;
 
 }
